@@ -3,7 +3,7 @@ const axios = require('axios');
 const app = express();
 const { HttpProxyAgent } = require('http-proxy-agent');
 const { HttpsProxyAgent } = require('https-proxy-agent');
-
+const moment = require('moment-timezone');
 const cron = require('node-cron');
 const google = require('googleapis').google;
 const xml2js = require('xml2js');
@@ -11,7 +11,8 @@ const csvWriter = require('./lib/csvWriter')
 const { parse, stringify } = require('csv');
 const processHalt = require('./lib/processHalt');
 const csvReader = require('./lib/csvReader');
-
+//trading timezone!
+moment.tz.setDefault('America/New_York');
 
 const auth = new google.auth.GoogleAuth({
     keyFile: './key.json',
@@ -32,20 +33,6 @@ const proxyPort = '3128'; // replace with your proxy server port, 3128 is the de
 
 
 
-function convertArrayToCSV(data) {
-  console.log(data)
-  return new Promise((resolve, reject) => {
-    stringify(data, (err, csvString) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      
-      resolve(csvString);
-    });
-  });
-}
-
   
   function parseHalts(xmlString, spreadsheetId) {
   try {
@@ -58,27 +45,76 @@ function convertArrayToCSV(data) {
         reject(err);
       } else {
         const currentTime = new Date();
+       
         const halts = result.rss.channel.item.map(item => ([
           item['ndaq:HaltTime'],
           item['ndaq:IssueSymbol'],
           item['ndaq:IssueName'],
-          currentTime.toISOString(),  // adding the current time to each row
+          item['ndaq:ResumptionDate'],
+          item['ndaq:ResumptionQuoteTime'],
+          item['ndaq:ResumptionTradeTime'],
+          moment().format('YYYY-MM-DD HH:mm:ss'),  // adding the current time to each row
         ]));
 
         const storedHalt = result.rss.channel.item.map(item => ([
           item['ndaq:HaltTime'],
           item['ndaq:IssueSymbol'],
           item['ndaq:IssueName'],
+          item['ndaq:ResumptionDate'],
+          item['ndaq:ResumptionQuoteTime'],
+          item['ndaq:ResumptionTradeTime'],
         
         ]));
 
         const mostRecentHalt = halts[0];  // assuming that the first item is the most recent
-        csvWriter(storedHalt[0])
-        processHalt(mostRecentHalt)
+      
+        const storedData = await csvReader()
+        //parses the most current incoming data to compare against the stored csv string
+        //if the data is different then a webhook will be triggered notifying the frontend
+        const string = mostRecentHalt[0] + mostRecentHalt[1] + mostRecentHalt[3] ;
+        const record = [string.replace(/\s/g, " ")];
+        const currentData = record.join(',');
+        
+        if(currentData !== storedData) {
+          console.log("value changed")
 
-        const csv = await csvReader()
+           if(mostRecentHalt[5].length > 3) {
+            processHalt(mostRecentHalt, "TRADING RESUMED")
+            console.log(`${mostRecentHalt[2]} resumed trading at ${mostRecentHalt[5]}`)
+            axios.post("https://webhook.site/70774275-2c4b-498e-a304-d81fd5454fd0",{data: {
+            message: "TRADING RESUMED",
+            haltTime:mostRecentHalt[0],
+            issueSymbol:mostRecentHalt[1],
+            issueName:mostRecentHalt[2],
+            resumeDate:mostRecentHalt[3],
+            resumeQuoteTime:mostRecentHalt[4],
+            serverTime: moment().format('YYYY-MM-DD HH:mm:ss')
+          }})
+          }
+
+          processHalt(mostRecentHalt, "TRADING STOPPED")
+          axios.post("https://webhook.site/70774275-2c4b-498e-a304-d81fd5454fd0",{data: {
+            message: "TRADING STOPPED",
+            haltTime:mostRecentHalt[0],
+            issueSymbol:mostRecentHalt[1],
+            issueName:mostRecentHalt[2],
+            resumeDate:mostRecentHalt[3],
+            resumeQuoteTime:mostRecentHalt[4],
+            serverTime: moment().format('YYYY-MM-DD HH:mm:ss')
+          }})
+        }
+
+
+
+        csvWriter(storedHalt[0])
         
         
+        
+       
+        
+        
+
+
         // const csv2 = await convertArrayToCSV(storedHalt[0])
         // console.log(csv2)
         // if(csv !== csv2) {
@@ -112,12 +148,9 @@ cron.schedule('*/10 * * * * *', async() => {
     httpsAgent: httpsProxy
 }).catch(err => console.log(err))
    
-   successfulFetches++
-   
-   
+    successfulFetches++
     await parseHalts(response.data)
-    
-    
+  
     console.log("---------------SuccessfulFetches: "  + successfulFetches)
 });
   

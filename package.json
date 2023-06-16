@@ -18,6 +18,8 @@
     "http-proxy": "^1.18.1",
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.0",
+    "moment": "^2.29.4",
+    "moment-timezone": "^0.5.43",
     "node-cron": "^3.0.2",
     "socket.io": "^4.6.2",
     "xml2js": "^0.6.0"

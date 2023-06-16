@@ -1,3 +1,9 @@
+const dotenv = require('dotenv')
+dotenv.config()
+
+const http = require('http');
+const socketio = require('socket.io');
+
 const express = require('express')
 const axios = require('axios');
 const app = express();
@@ -13,6 +19,17 @@ const processHalt = require('./lib/processHalt');
 const csvReader = require('./lib/csvReader');
 //trading timezone!
 moment.tz.setDefault('America/New_York');
+
+//frontend Event listener expects the following data: [[(4)...['METBV'(issueSymbol), 'resume/halt', 'LUDP'(reason)]] [] [] []]
+const WEBAPP_SOURCE = process.env.WEBAPP_SOURCE || '';
+const httpServer = new http.Server(app);
+const io = new socketio.Server(httpServer, {
+  cors: {
+    origin: [...WEBAPP_SOURCE.split(","), "http://localhost:3000"],
+    methods: "*"
+  }
+});
+
 
 const auth = new google.auth.GoogleAuth({
     keyFile: './key.json',
@@ -31,13 +48,17 @@ const proxyHost = [
  ]; // replace with your proxy server IP
 const proxyPort = '3128'; // replace with your proxy server port, 3128 is the default Squid port
 
-
+ //to compare trading resume
+ //left this in memory since the stop times are short.
+let currentlyHalted = { 
+    issueSymbol:null,
+    issueName: null,
+    resumeTime:'',
+ }
 
   
   function parseHalts(xmlString, spreadsheetId) {
   try {
-
-  
     return new Promise( (resolve, reject) => {
     const parser = new xml2js.Parser({ explicitArray: false });
     parser.parseString(xmlString, async (err, result) => {
@@ -53,6 +74,7 @@ const proxyPort = '3128'; // replace with your proxy server port, 3128 is the de
           item['ndaq:ResumptionDate'],
           item['ndaq:ResumptionQuoteTime'],
           item['ndaq:ResumptionTradeTime'],
+          item['ndaq:ReasonCode'],
           moment().format('YYYY-MM-DD HH:mm:ss'),  // adding the current time to each row
         ]));
 
@@ -71,16 +93,15 @@ const proxyPort = '3128'; // replace with your proxy server port, 3128 is the de
         const storedData = await csvReader()
         //parses the most current incoming data to compare against the stored csv string
         //if the data is different then a webhook will be triggered notifying the frontend
-        const string = mostRecentHalt[0] + mostRecentHalt[1] + mostRecentHalt[3] ;
+        const string = mostRecentHalt[0] + mostRecentHalt[1] + mostRecentHalt[5] ;
         const record = [string.replace(/\s/g, " ")];
         const currentData = record.join(',');
         
         if(currentData !== storedData) {
-          console.log("value changed")
-
+          
            if(mostRecentHalt[5].length > 3) {
             processHalt(mostRecentHalt, "TRADING RESUMED")
-            console.log(`${mostRecentHalt[2]} resumed trading at ${mostRecentHalt[5]}`)
+           
             axios.post("https://webhook.site/70774275-2c4b-498e-a304-d81fd5454fd0",{data: {
             message: "TRADING RESUMED",
             haltTime:mostRecentHalt[0],
@@ -88,6 +109,7 @@ const proxyPort = '3128'; // replace with your proxy server port, 3128 is the de
             issueName:mostRecentHalt[2],
             resumeDate:mostRecentHalt[3],
             resumeQuoteTime:mostRecentHalt[4],
+            resumeTime: mostRecentHalt[5],
             serverTime: moment().format('YYYY-MM-DD HH:mm:ss')
           }})
           }
@@ -100,6 +122,7 @@ const proxyPort = '3128'; // replace with your proxy server port, 3128 is the de
             issueName:mostRecentHalt[2],
             resumeDate:mostRecentHalt[3],
             resumeQuoteTime:mostRecentHalt[4],
+            resumeTime: mostRecentHalt[5],
             serverTime: moment().format('YYYY-MM-DD HH:mm:ss')
           }})
         }
@@ -107,6 +130,8 @@ const proxyPort = '3128'; // replace with your proxy server port, 3128 is the de
 
 
         csvWriter(storedHalt[0])
+        
+       
         
         
         
@@ -147,7 +172,7 @@ cron.schedule('*/10 * * * * *', async() => {
     httpAgent: httpProxy,
     httpsAgent: httpsProxy
 }).catch(err => console.log(err))
-   
+    
     successfulFetches++
     await parseHalts(response.data)
   

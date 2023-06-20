@@ -22,10 +22,10 @@ moment.tz.setDefault("America/New_York");
 
 // frontend Event listener expects the following data: [[(4)...['METBV'(issueSymbol), 'resume/halt', 'LUDP'(reason)]] [] [] []]
 
-const WEBAPP_SOURCE = process.env.WEBAPP_SOURCE || "";
+const WEBAPP_SOURCE = 'https://dev.mometic.com' || "";
 const httpServer = new http.Server(app);
 app.use(cors({
-  origin: [...WEBAPP_SOURCE.split(","), "http://localhost:3000"],
+  origin: ['https://dev.mometic.com', "http://localhost:3000"],
   methods: ["GET", "POST", "PUT", "DELETE"], // specify the methods you want to allow
   credentials: true // allowing credentials, which enables cookies to be sent and received
 }));
@@ -34,7 +34,7 @@ const io = new socketio.Server(httpServer, {
   cors: {
     origin: 
     [
-       ...WEBAPP_SOURCE.split(","), 
+      'https://dev.mometic.com', 
       "http://localhost:3000"
     ],
     methods: "*",
@@ -61,15 +61,19 @@ let successfulFetches = 0;
 
 const proxyHost = [
   // process.env.PROXY1,
-  process.env.PROXY2,
-  process.env.PROXY3,
-  process.env.PROXY4,
-  process.env.PROXY5,
-  process.env.PROXY6,
-  process.env.PROXY7,
+  '54.174.164.37',
+'3.87.0.16',
+'54.164.9.245',
+'44.212.44.114',
+'44.201.245.233',
+'34.226.202.156',
+'3.82.206.53',
+ 
 ];
 
-const proxyPort = process.env.PROXY_PORT;
+
+
+const proxyPort = '3128';
 
 
 
@@ -92,7 +96,7 @@ cron.schedule("*/10 * * * * *", async () => {
     // DEV ONLY**
 
     const response = await axios
-      .get(process.env.NASDAQ_QUERY, {
+      .get("http://www.nasdaqtrader.com/rss.aspx?feed=tradehalts", {
         httpAgent: httpProxy,
         httpsAgent: httpsProxy,
       })

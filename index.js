@@ -44,7 +44,7 @@ const io = new socketio.Server(httpServer, {
 
 // const connectedClients = new Map();
 io.on('connect', socket => {
-  socket.emit('welcome', 'You are connected to the server!');
+  socket.emit('welcome', 'Halt server connected!!!');
   
   socket.on('ping', () => {
     socket.emit('pong', 'Socket Alive');
@@ -112,6 +112,6 @@ cron.schedule("*/10 * * * * *", async () => {
   }
 });
 
-httpServer.listen("5001", () => {
-  console.log("App running on 5001");
+httpServer.listen("5020", () => {
+  console.log("App running on 5020");
 });

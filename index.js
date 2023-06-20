@@ -101,7 +101,7 @@ cron.schedule("*/10 * * * * *", async () => {
         httpsAgent: httpsProxy,
       })
       .catch((err) => console.log(err));
-      console.log(response)
+    
     // controls index
     successfulFetches++;
 

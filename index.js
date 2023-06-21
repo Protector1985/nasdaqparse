@@ -1,17 +1,14 @@
 require("dotenv").config();
 const parseHalts = require("./lib/parseHalts");
-const http = require("http");
-
-const express = require("express");
+const events = require('events');
+const eventEmitter = new events.EventEmitter();
 const axios = require("axios");
-
 const { HttpProxyAgent } = require("http-proxy-agent");
 const { HttpsProxyAgent } = require("https-proxy-agent");
 const moment = require("moment-timezone");
 const cron = require("node-cron");
-const google = require("googleapis").google;
 
-function nasdaq_fetcher(proxyHostArray, proxy_port, io, fs ) {
+function nasdaq_fetcher(proxyHostArray, proxy_port, fs ) {
 
 moment.tz.setDefault("America/New_York");
 let successfulFetches = 0;
@@ -49,29 +46,14 @@ cron.schedule("*/10 * * * * *", async () => {
     successfulFetches++;
 
     // processes the XML data from the query
-    await parseHalts(response.data, io, fs);
+    await parseHalts(response?.data, eventEmitter, fs);
   } catch (err) {
     console.log(err);
   }
 });
-
+return eventEmitter
 }
 
 module.exports = nasdaq_fetcher
 
 
-// '3128'
-// [
-  // process.env.PROXY1,
-//   '54.174.164.37',
-//   '3.87.0.16',
-//   '54.164.9.245',
-//   '44.212.44.114',
-//   '44.201.245.233',
-//   '34.226.202.156',
-//   '3.82.206.53',
- 
-// ];
-// httpServer.listen("5020", () => {
-//   console.log("App running on 5020");
-// });
